@@ -1,0 +1,13 @@
+# Netlify build & routing config for Kai Green Fitness (demo build).
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Make SPA routing work — every unknown path falls back to index.html
+# so /members, /members/m-001, /account etc. all serve the React app
+# instead of returning 404 on direct visit / refresh.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
