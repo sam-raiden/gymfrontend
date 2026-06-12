@@ -36,6 +36,7 @@ import {
   TrendingUp,
   SwitchCamera,
   RotateCcw,
+  Download,
 } from 'lucide-react';
 
 const STROKE = 1.75;
@@ -81,3 +82,4 @@ export const IconWallet = wrap(Wallet);
 export const IconTrend = wrap(TrendingUp);
 export const IconCameraFlip = wrap(SwitchCamera);
 export const IconRetake = wrap(RotateCcw);
+export const IconDownload = wrap(Download);

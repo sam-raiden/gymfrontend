@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { ApiError } from '../api/client.js';
 import { IconMail, IconLock, IconArrowRight, IconAlert, IconDumbbell } from '../components/icons.jsx';
+import InstallPrompt from '../components/InstallPrompt.jsx';
 
 const WHATSAPP_NUMBER = '91XXXXXXXXXX';
 
@@ -114,6 +115,8 @@ export default function Login() {
             </a>
           </span>
         </div>
+
+        <InstallPrompt />
 
         <div className="login-footer">© 2026 Retainr</div>
       </div>

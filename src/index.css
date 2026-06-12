@@ -1017,6 +1017,64 @@ a {
   color: var(--text);
 }
 
+.install-banner {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.install-banner-text {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.install-banner-text strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.install-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.install-banner-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: #1a0a00;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.install-banner-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  color: var(--text-muted);
+}
+
+.install-banner-dismiss:hover {
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
 .login-error {
   display: flex;
   align-items: center;
