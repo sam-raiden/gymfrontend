@@ -19,7 +19,7 @@ function RequireAuth({ children }) {
     // minimal splash instead of flashing to /login.
     return (
       <div className="auth-splash">
-        <div className="auth-splash-logo">KG</div>
+        <div className="auth-splash-logo">R</div>
         <div className="auth-splash-text">Signing you in…</div>
       </div>
     );

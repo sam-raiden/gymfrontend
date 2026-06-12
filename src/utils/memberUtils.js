@@ -1,14 +1,3 @@
-// Default seed for the plans list. The MembersContext clones this on first
-// run and from then on the gym owner can add / remove / edit plans freely
-// — these are only fallbacks for first-time install and for legacy code
-// paths (mock payment seeder) that don't have access to the live store.
-export const PLANS = {
-  standard:   { id: 'standard',   name: 'Standard',    price: 800,  durationMonths: 1, builtin: true },
-  weightLoss: { id: 'weightLoss', name: 'Weight Loss', price: 1500, durationMonths: 1, builtin: true },
-};
-
-export const PLAN_LIST = Object.values(PLANS);
-
 /** "1 month" / "3 months" / "12 months" */
 export function durationLabel(months) {
   const n = Math.max(1, Math.round(Number(months) || 1));
@@ -39,12 +28,10 @@ const MONTHS = [
 // regardless of where the device is or how its clock is set. We format the
 // current moment in IST and return the calendar date as a YYYY-MM-DD string.
 //
-// Backend note: when a real server is wired up, the *authoritative*
-// end_date should be computed and stored server-side (also in IST). The
-// frontend uses computeEndDate() only to PREVIEW the next-month date in
-// the confirmation modal — the server should re-compute the canonical
-// value on save and the frontend should display whatever the server
-// returns.
+// The authoritative end_date is computed and stored server-side (also in
+// IST). computeEndDate() here is only used to PREVIEW the next-month date
+// in the add/renew confirmation modals — the server recomputes the
+// canonical value on save, and the UI displays whatever it returns.
 // ---------------------------------------------------------------------------
 
 export function todayIST() {
@@ -155,10 +142,6 @@ export function getDaysRemaining(endDateISO, todayDate = todayIST()) {
   return daysBetween(todayDate, endDateISO);
 }
 
-export function getPlan(planId) {
-  return PLANS[planId] || PLANS.standard;
-}
-
 // ---------------------------------------------------------------------------
 // Display helpers
 //
@@ -198,4 +181,12 @@ export function daysRemainingLabel(days) {
   if (days === 0) return 'Expires today';
   if (days === 1) return '1 day left';
   return `${days} days left`;
+}
+
+/** Urgency tone for a days-remaining pill: 'urgent' (today/overdue/1 day),
+ * 'soon' (2-5 days), or 'later' (6-7 days). */
+export function daysUrgencyTone(days) {
+  if (days <= 1) return 'urgent';
+  if (days <= 5) return 'soon';
+  return 'later';
 }

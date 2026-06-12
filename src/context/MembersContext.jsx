@@ -1,13 +1,17 @@
-// Pure in-memory members store for the standalone demo build (no backend).
+// Members/payments/plans store backed by the kgf-backend API.
 //
 // What it does:
-//   * Seeds 18 demo members with payment dates relative to today.
-//   * Persists to localStorage so adds/edits/renews/deletes survive
-//     refresh — better demo UX than wiping on every reload.
-//   * Computes status / days_remaining / revenue live on every read,
-//     anchored to today in IST.
-//   * Mirrors the exact context interface the pages already use:
-//     async mutations + snapshot/restore for the 5-second undo flow.
+//   * On sign-in, fetches members + payments + active plans in parallel.
+//   * Decorates snake_case API responses into the camelCase shape the
+//     existing pages already expect (planInfo, daysRemaining, etc.).
+//   * stats / expiringThisWeek are derived client-side from the fetched
+//     members + payments so they stay in sync with local mutations
+//     (renew/delete/undo) without an extra round trip per action.
+//   * Mutations call the API first, then update local state from the
+//     server's response — the server is always the source of truth for
+//     status/expiry/price.
+//   * "Reminder sent" is a frontend-only nicety (no backend concept) and
+//     stays in localStorage.
 import {
   createContext,
   useCallback,
@@ -17,56 +21,22 @@ import {
   useState,
 } from 'react';
 
-import { seedMembers, seedPayments } from '../data/mockMembers.js';
-import {
-  PLAN_LIST,
-  computeEndDate,
-  getDaysRemaining,
-  getStatus,
-  todayIST,
-} from '../utils/memberUtils.js';
-
-// Re-export so pages can import payment-method definitions from one place.
-// (Defined further down in this file.)
+import { apiFetch, apiUpload } from '../api/client.js';
+import { useAuth } from './AuthContext.jsx';
+import { todayIST } from '../utils/memberUtils.js';
 
 const MembersContext = createContext(null);
 
-const STORE_KEY = 'kgf-demo-members-v1';
-const REMINDERS_KEY = 'kgf-demo-reminders-v1';
-const PAYMENTS_KEY = 'kgf-demo-payments-v1';
-const PLANS_KEY = 'kgf-demo-plans-v1';
+const REMINDERS_KEY = 'kgf-reminders-v1';
 
 export const PAYMENT_METHODS = [
   { id: 'cash', label: 'Cash' },
   { id: 'gpay', label: 'GPay' },
 ];
 
-const DEFAULT_PLANS = PLAN_LIST.map((p) => ({ ...p }));
-
 // ---------------------------------------------------------------------------
-// Persistence helpers
+// Reminders — local-only, not part of the backend model.
 // ---------------------------------------------------------------------------
-
-function loadMembers() {
-  try {
-    const raw = window.localStorage.getItem(STORE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch {
-    /* ignore */
-  }
-  return seedMembers;
-}
-
-function saveMembers(members) {
-  try {
-    window.localStorage.setItem(STORE_KEY, JSON.stringify(members));
-  } catch {
-    /* quota / private mode — fine, in-memory state still works */
-  }
-}
 
 function loadReminders() {
   try {
@@ -80,106 +50,56 @@ function loadReminders() {
 
 function saveReminders(setOfIds) {
   try {
-    window.localStorage.setItem(
-      REMINDERS_KEY,
-      JSON.stringify([...setOfIds])
-    );
-  } catch {
-    /* ignore */
-  }
-}
-
-function loadPayments() {
-  try {
-    const raw = window.localStorage.getItem(PAYMENTS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    }
-  } catch {
-    /* ignore */
-  }
-  return seedPayments;
-}
-
-function savePayments(payments) {
-  try {
-    window.localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
-  } catch {
-    /* ignore */
-  }
-}
-
-function loadPlans() {
-  try {
-    const raw = window.localStorage.getItem(PLANS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Migration: ensure every saved plan has durationMonths.
-        return parsed.map((p) => ({
-          durationMonths: 1,
-          builtin: false,
-          ...p,
-        }));
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return DEFAULT_PLANS;
-}
-
-function savePlans(plans) {
-  try {
-    window.localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
+    window.localStorage.setItem(REMINDERS_KEY, JSON.stringify([...setOfIds]));
   } catch {
     /* ignore */
   }
 }
 
 // ---------------------------------------------------------------------------
-// Decoration — attaches computed fields to a raw row so callers don't have
-// to import logic helpers everywhere.
+// Decoration — snake_case API rows -> camelCase view models.
 // ---------------------------------------------------------------------------
 
-function decorate(member, today, plansList) {
-  // Look up the live plan. If a custom plan was deleted while a member
-  // still references it, fall back to the first plan so the UI never breaks.
-  const plan =
-    plansList.find((p) => p.id === member.plan) ||
-    plansList[0] ||
-    DEFAULT_PLANS[0];
-  const endDate = computeEndDate(member.paymentDate, plan.durationMonths || 1);
+function decorateMember(m) {
   return {
-    ...member,
-    planInfo: plan,
-    endDate,
-    status: getStatus(endDate, today),
-    daysRemaining: getDaysRemaining(endDate, today),
+    id: m.id,
+    name: m.name,
+    phone: m.phone,
+    photoUrl: m.photo_url,
+    plan: m.plan,
+    paymentDate: m.payment_date,
+    endDate: m.expiry_date,
+    joinedOn: m.joined_on,
+    status: m.status,
+    daysRemaining: m.days_remaining,
+    planInfo: {
+      name: m.plan,
+      price: m.plan_price,
+      durationMonths: m.plan_duration_months,
+    },
   };
 }
 
-// ---------------------------------------------------------------------------
-// ID generation for newly-added members
-// ---------------------------------------------------------------------------
-
-let _idCounter = 1000;
-function nextId() {
-  _idCounter += 1;
-  return `m-${_idCounter}`;
+function decoratePayment(p) {
+  return {
+    id: p.id,
+    memberId: p.member_id,
+    memberName: p.member_name,
+    photoUrl: p.photo_url,
+    plan: p.plan,
+    amount: p.amount,
+    method: (p.payment_method || 'CASH').toLowerCase(),
+    paidAt: p.paid_at,
+  };
 }
 
-let _paymentCounter = 9000;
-function nextPaymentId() {
-  _paymentCounter += 1;
-  return `p-${_paymentCounter}`;
-}
-
-let _planCounter = 100;
-function nextPlanId() {
-  _planCounter += 1;
-  return `plan-${Date.now().toString(36)}-${_planCounter}`;
+function decoratePlan(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    price: p.price,
+    durationMonths: p.duration_months,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -187,170 +107,158 @@ function nextPlanId() {
 // ---------------------------------------------------------------------------
 
 export function MembersProvider({ children }) {
-  const [members, setMembers] = useState(loadMembers);
-  const [remindersSent, setRemindersSent] = useState(loadReminders);
-  const [payments, setPayments] = useState(loadPayments);
-  const [plans, setPlans] = useState(loadPlans);
+  const { isAuthed } = useAuth();
 
-  // Persist on every change so closing the tab doesn't lose the demo state.
-  useEffect(() => {
-    saveMembers(members);
-  }, [members]);
+  const [members, setMembers] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [remindersSent, setRemindersSent] = useState(loadReminders);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     saveReminders(remindersSent);
   }, [remindersSent]);
 
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [membersRes, paymentsRes, plansRes] = await Promise.all([
+        apiFetch('/api/v1/members'),
+        apiFetch('/api/v1/payments'),
+        apiFetch('/api/v1/plans'),
+      ]);
+      setMembers(membersRes.members.map(decorateMember));
+      setPayments(paymentsRes.payments.map(decoratePayment));
+      setPlans(plansRes.plans.map(decoratePlan));
+    } catch (err) {
+      setError(err?.message || 'Could not load data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch on sign-in; clear local state on sign-out.
   useEffect(() => {
-    savePayments(payments);
-  }, [payments]);
-
-  useEffect(() => {
-    savePlans(plans);
-  }, [plans]);
-
-  const referenceDate = useMemo(() => todayIST(), []);
-
-  const decoratedMembers = useMemo(
-    () => members.map((m) => decorate(m, referenceDate, plans)),
-    [members, referenceDate, plans]
-  );
-
-  const getPlan = useCallback(
-    (id) =>
-      plans.find((p) => p.id === id) ||
-      plans[0] ||
-      DEFAULT_PLANS[0],
-    [plans]
-  );
+    if (!isAuthed) {
+      setMembers([]);
+      setPayments([]);
+      setPlans([]);
+      setLoading(false);
+      return;
+    }
+    refresh();
+  }, [isAuthed, refresh]);
 
   const stats = useMemo(() => {
     let active = 0;
     let expiring = 0;
     let expired = 0;
-    let revenue = 0;
-    for (const m of decoratedMembers) {
-      if (m.status === 'active') {
-        active += 1;
-        revenue += m.planInfo.price;
-      } else if (m.status === 'expiring') {
-        expiring += 1;
-      } else {
-        expired += 1;
-      }
+    for (const m of members) {
+      if (m.status === 'active') active += 1;
+      else if (m.status === 'expiring') expiring += 1;
+      else expired += 1;
     }
-    return {
-      total: decoratedMembers.length,
-      active,
-      expiring,
-      expired,
-      revenue,
-    };
-  }, [decoratedMembers]);
+    const currentMonth = todayIST().slice(0, 7);
+    const revenue = payments
+      .filter((p) => p.paidAt.startsWith(currentMonth))
+      .reduce((sum, p) => sum + p.amount, 0);
+    return { total: members.length, active, expiring, expired, revenue };
+  }, [members, payments]);
 
   const expiringThisWeek = useMemo(
     () =>
-      decoratedMembers
+      members
         .filter((m) => m.status === 'expiring')
         .sort((a, b) => a.daysRemaining - b.daysRemaining),
-    [decoratedMembers]
+    [members]
   );
 
   const getMember = useCallback(
-    (id) =>
-      decoratedMembers.find((m) => String(m.id) === String(id)) || null,
-    [decoratedMembers]
+    (id) => members.find((m) => String(m.id) === String(id)) || null,
+    [members]
   );
 
   // ---- Mutations -------------------------------------------------------
-  //
-  // Functions are async (returning resolved promises) to match the page
-  // code that uses `await` everywhere. Internally everything is sync.
 
   const addMember = useCallback(async (data) => {
-    const id = nextId();
-    const newMember = {
-      id,
-      name: data.name.trim(),
-      phone: data.phone.trim(),
-      plan: data.plan,
-      paymentDate: data.paymentDate,
-      joinedOn: data.paymentDate,
-      photoUrl: data.photoUrl || null,
-    };
-    setMembers((prev) => [newMember, ...prev]);
-    return id;
+    const { member } = await apiFetch('/api/v1/members', {
+      method: 'POST',
+      body: {
+        name: data.name.trim(),
+        phone: data.phone.trim(),
+        plan: data.plan,
+        payment_date: data.paymentDate,
+        photo_url: data.photoUrl ?? null,
+      },
+    });
+    const decorated = decorateMember(member);
+    setMembers((prev) => [decorated, ...prev]);
+    return decorated.id;
   }, []);
 
   const updateMember = useCallback(async (id, data) => {
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.id === id
-          ? {
-              ...m,
-              name: data.name !== undefined ? data.name.trim() : m.name,
-              phone: data.phone !== undefined ? data.phone.trim() : m.phone,
-              plan: data.plan !== undefined ? data.plan : m.plan,
-              paymentDate:
-                data.paymentDate !== undefined
-                  ? data.paymentDate
-                  : m.paymentDate,
-              photoUrl:
-                data.photoUrl !== undefined ? data.photoUrl : m.photoUrl,
-            }
-          : m
-      )
-    );
+    const { member } = await apiFetch(`/api/v1/members/${id}`, {
+      method: 'PATCH',
+      body: {
+        name: data.name?.trim(),
+        phone: data.phone?.trim(),
+        plan: data.plan,
+        payment_date: data.paymentDate,
+        photo_url: data.photoUrl ?? null,
+      },
+    });
+    const decorated = decorateMember(member);
+    setMembers((prev) => prev.map((m) => (m.id === id ? decorated : m)));
+    return decorated;
   }, []);
 
   // Renew accepts:
-  //   method  — 'cash' | 'gpay'  (defaults to cash)
-  //   planId  — switch the member to a different plan during renewal;
-  //             omit (or pass the member's current planId) to keep it.
+  //   method  — 'cash' | 'gpay'  (mapped to 'CASH' | 'GPAY' for the API)
+  //   planId  — the plan *name* to switch to during renewal; omit (or pass
+  //             the member's current plan name) to keep it.
   //
   // The snapshot returned for undo captures the *previous* paymentDate,
-  // plan and the new payment-record id so restoreMember can revert all
+  // plan, and the new payment record's id so restoreMember can revert all
   // three in one shot.
   const renewMember = useCallback(
     async (id, { method = 'cash', planId } = {}) => {
-      let snapshot = null;
-      let reminderWasSent = false;
-      let paymentRecord = null;
+      const target = members.find((m) => m.id === id);
+      if (!target) return null;
 
-      setMembers((prev) => {
-        const target = prev.find((m) => m.id === id);
-        if (!target) return prev;
-        const today = todayIST();
-        const effectivePlanId = planId || target.plan;
-        const plan = getPlan(effectivePlanId);
-        paymentRecord = {
-          id: nextPaymentId(),
-          memberId: id,
-          memberName: target.name,
-          planId: plan.id,
-          planName: plan.name,
-          amount: plan.price,
-          method,
-          paidAt: today,
-        };
-        snapshot = {
-          kind: 'renew',
-          id,
-          paymentDate: target.paymentDate,
-          plan: target.plan,
-          paymentId: paymentRecord.id,
-        };
-        return prev.map((m) =>
-          m.id === id
-            ? { ...m, paymentDate: today, plan: effectivePlanId }
-            : m
-        );
+      const body = { payment_method: method.toUpperCase() };
+      if (planId && planId !== target.plan) body.plan = planId;
+
+      const { member, payment, previous } = await apiFetch(`/api/v1/members/${id}/renew`, {
+        method: 'POST',
+        body,
       });
 
-      if (paymentRecord) {
-        setPayments((prev) => [paymentRecord, ...prev]);
-      }
+      setMembers((prev) => prev.map((m) => (m.id === id ? decorateMember(member) : m)));
+      setPayments((prev) => [
+        decoratePayment({
+          id: payment.id,
+          member_id: id,
+          member_name: target.name,
+          photo_url: target.photoUrl,
+          plan: payment.plan,
+          amount: payment.amount,
+          payment_method: payment.payment_method,
+          paid_at: payment.paid_at,
+        }),
+        ...prev,
+      ]);
 
+      const snapshot = {
+        kind: 'renew',
+        id,
+        paymentDate: previous.payment_date,
+        plan: previous.plan,
+        paymentId: payment.id,
+      };
+
+      let reminderWasSent = false;
       if (remindersSent.has(id)) {
         reminderWasSent = true;
         setRemindersSent((prev) => {
@@ -360,58 +268,63 @@ export function MembersProvider({ children }) {
           return next;
         });
       }
-      return snapshot ? { snapshot, reminderWasSent } : null;
+
+      return { snapshot, reminderWasSent };
     },
-    [remindersSent, getPlan]
+    [members, remindersSent]
   );
 
-  const removeMember = useCallback(async (id) => {
-    let snapshot = null;
-    let index = -1;
-    setMembers((prev) => {
-      index = prev.findIndex((m) => m.id === id);
-      if (index === -1) return prev;
-      const target = prev[index];
-      snapshot = {
+  const removeMember = useCallback(
+    async (id) => {
+      const index = members.findIndex((m) => m.id === id);
+      if (index === -1) return null;
+      const target = members[index];
+
+      await apiFetch(`/api/v1/members/${id}`, { method: 'DELETE' });
+      setMembers((prev) => prev.filter((m) => m.id !== id));
+
+      const snapshot = {
         kind: 'delete',
         data: {
           name: target.name,
           phone: target.phone,
           plan: target.plan,
           paymentDate: target.paymentDate,
-          joinedOn: target.joinedOn,
           photoUrl: target.photoUrl || null,
         },
       };
-      return prev.filter((m) => m.id !== id);
-    });
-    return snapshot ? { snapshot, index } : null;
-  }, []);
+      return { snapshot, index };
+    },
+    [members]
+  );
 
   const restoreMember = useCallback(async (snapshot, index = 0) => {
     if (!snapshot) return;
     if (snapshot.kind === 'renew') {
-      setMembers((prev) =>
-        prev.map((m) =>
-          m.id === snapshot.id
-            ? {
-                ...m,
-                paymentDate: snapshot.paymentDate,
-                // Restore the prior plan too (renew may have switched it).
-                plan: snapshot.plan ?? m.plan,
-              }
-            : m
-        )
-      );
+      const { member } = await apiFetch(`/api/v1/members/${snapshot.id}`, {
+        method: 'PATCH',
+        body: { payment_date: snapshot.paymentDate, plan: snapshot.plan },
+      });
+      setMembers((prev) => prev.map((m) => (m.id === snapshot.id ? decorateMember(member) : m)));
+
       // Drop the payment record the renew created — undoing the renew
       // also undoes the revenue ticking up.
       if (snapshot.paymentId) {
-        setPayments((prev) =>
-          prev.filter((p) => p.id !== snapshot.paymentId)
-        );
+        await apiFetch(`/api/v1/payments/${snapshot.paymentId}`, { method: 'DELETE' });
+        setPayments((prev) => prev.filter((p) => p.id !== snapshot.paymentId));
       }
     } else if (snapshot.kind === 'delete') {
-      const restored = { id: nextId(), ...snapshot.data };
+      const { member } = await apiFetch('/api/v1/members', {
+        method: 'POST',
+        body: {
+          name: snapshot.data.name,
+          phone: snapshot.data.phone,
+          plan: snapshot.data.plan,
+          payment_date: snapshot.data.paymentDate,
+          photo_url: snapshot.data.photoUrl,
+        },
+      });
+      const restored = decorateMember(member);
       setMembers((prev) => {
         const next = [...prev];
         const at = Math.max(0, Math.min(index, next.length));
@@ -439,65 +352,53 @@ export function MembersProvider({ children }) {
     });
   }, []);
 
-  // ---- Plan management ------------------------------------------------
-  //
-  // Owner-managed plans persist in localStorage. Adding/removing here
-  // updates the picker shown in MemberForm AND in the renewal modal.
-  // Builtin plans (Standard, Weight Loss) come from DEFAULT_PLANS — they
-  // can't be removed because seed data + UI examples depend on them, but
-  // the owner can add as many custom plans as they like.
-
-  const addPlan = useCallback(async ({ name, price, durationMonths }) => {
-    const trimmedName = (name || '').trim();
-    const cleanedPrice = Math.max(0, Math.round(Number(price) || 0));
-    const cleanedMonths = Math.max(1, Math.round(Number(durationMonths) || 1));
-    if (trimmedName.length < 2) {
-      throw new Error('Plan name must be at least 2 characters.');
-    }
-    const newPlan = {
-      id: nextPlanId(),
-      name: trimmedName,
-      price: cleanedPrice,
-      durationMonths: cleanedMonths,
-      builtin: false,
-    };
-    setPlans((prev) => [...prev, newPlan]);
-    return newPlan;
+  const uploadMemberPhoto = useCallback(async (id, file) => {
+    const formData = new FormData();
+    formData.append('photo', file);
+    const { member } = await apiUpload(`/api/v1/members/${id}/photo`, formData);
+    const decorated = decorateMember(member);
+    setMembers((prev) => prev.map((m) => (m.id === id ? decorated : m)));
+    return decorated;
   }, []);
 
-  const removePlan = useCallback(
-    async (id) => {
-      const target = plans.find((p) => p.id === id);
-      if (!target) return false;
-      if (target.builtin) {
-        throw new Error("Built-in plans can't be removed.");
-      }
-      const inUse = members.some((m) => m.plan === id);
-      if (inUse) {
-        throw new Error(
-          'This plan is currently assigned to members. Move them to another plan first.'
-        );
-      }
-      setPlans((prev) => prev.filter((p) => p.id !== id));
-      return true;
-    },
-    [plans, members]
-  );
+  // ---- Plan management ---------------------------------------------------
+  //
+  // Plans can be created with a custom name, price, and calendar-month
+  // duration, or deactivated. Members already on a deactivated plan keep
+  // their plan name (snapshot semantics).
+
+  const addPlan = useCallback(async (data) => {
+    const { plan } = await apiFetch('/api/v1/plans', {
+      method: 'POST',
+      body: {
+        name: data.name,
+        price: data.price,
+        duration_months: data.durationMonths,
+      },
+    });
+    const decorated = decoratePlan(plan);
+    setPlans((prev) => [...prev, decorated]);
+    return decorated;
+  }, []);
+
+  const removePlan = useCallback(async (id) => {
+    await apiFetch(`/api/v1/plans/${id}`, { method: 'DELETE' });
+    setPlans((prev) => prev.filter((p) => p.id !== id));
+  }, []);
 
   const value = {
-    members: decoratedMembers,
+    members,
     stats,
     expiringThisWeek,
     payments,
     plans,
-    loading: false,
-    error: null,
-    referenceDate,
+    loading,
+    error,
     getMember,
-    getPlan,
     addMember,
     updateMember,
     renewMember,
+    uploadMemberPhoto,
     removeMember,
     restoreMember,
     restoreReminder,
@@ -505,7 +406,7 @@ export function MembersProvider({ children }) {
     remindersSent,
     addPlan,
     removePlan,
-    refresh: () => {},
+    refresh,
   };
 
   return (

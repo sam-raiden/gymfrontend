@@ -1,14 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import { IconChevronLeft, IconLogout } from './icons.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { initials } from '../utils/memberUtils.js';
 
 export function BrandHeader({ trailing }) {
+  const { user } = useAuth();
+  const gymName = user?.gymName || 'Retainr';
   return (
     <header className="app-header">
       <div className="brand">
-        <div className="brand-logo">KG</div>
+        <div className="brand-logo">{initials(gymName)}</div>
         <div className="brand-text">
-          <strong>Kai Green Fitness</strong>
+          <strong>{gymName}</strong>
           <span>Members</span>
         </div>
       </div>

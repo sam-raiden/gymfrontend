@@ -23,7 +23,6 @@ export default function PlanCreateModal({ isOpen, onClose, onCreate }) {
     setForm(DEFAULT_FORM);
     setError(null);
     setSubmitting(false);
-    // tiny delay so the modal mount finishes before we steal focus
     const t = setTimeout(() => nameRef.current?.focus(), 60);
     return () => clearTimeout(t);
   }, [isOpen]);
@@ -72,29 +71,13 @@ export default function PlanCreateModal({ isOpen, onClose, onCreate }) {
   };
 
   return (
-    <div
-      className="modal-backdrop"
-      onClick={() => onClose?.()}
-      role="presentation"
-    >
-      <div
-        className="modal-card"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="plan-create-title"
-        tabIndex={-1}
-        ref={dialogRef}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="modal-backdrop" onClick={() => onClose?.()} role="presentation">
+      <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="plan-create-title" tabIndex={-1} ref={dialogRef} onClick={(e) => e.stopPropagation()}>
         <div className="modal-icon accent">
           <IconSparkle size={20} />
         </div>
-        <h2 id="plan-create-title" className="modal-title">
-          New Plan
-        </h2>
-        <p className="modal-body">
-          Add a custom membership plan for your gym.
-        </p>
+        <h2 id="plan-create-title" className="modal-title">New Plan</h2>
+        <p className="modal-body">Add a custom membership plan for your gym.</p>
 
         <form className="plan-form" onSubmit={handleSubmit} noValidate>
           <div className="field">
@@ -161,32 +144,17 @@ export default function PlanCreateModal({ isOpen, onClose, onCreate }) {
           )}
 
           <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => onClose?.()}
-              disabled={submitting}
-            >
+            <button type="button" className="btn-secondary" onClick={() => onClose?.()} disabled={submitting}>
               Cancel
             </button>
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={!valid || submitting}
-            >
+            <button type="submit" className="btn-primary" disabled={!valid || submitting}>
               <IconCheck size={16} />
               {submitting ? 'Creating…' : 'Create Plan'}
             </button>
           </div>
         </form>
 
-        <button
-          type="button"
-          className="modal-close-x"
-          onClick={() => onClose?.()}
-          aria-label="Close"
-          disabled={submitting}
-        >
+        <button type="button" className="modal-close-x" onClick={() => onClose?.()} aria-label="Close" disabled={submitting}>
           <IconX size={16} />
         </button>
       </div>

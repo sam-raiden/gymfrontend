@@ -204,7 +204,7 @@ export default function Finance() {
                   <div className="payment-info">
                     <div className="payment-name">{p.memberName}</div>
                     <div className="payment-meta">
-                      <PlanBadge planId={p.planId} withPrice={false} />
+                      <PlanBadge planName={p.plan} withPrice={false} />
                       <span className="sep" />
                       <span>{formatShortDate(p.paidAt)}</span>
                     </div>

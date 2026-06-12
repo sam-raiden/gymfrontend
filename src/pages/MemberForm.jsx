@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useMembers } from '../context/MembersContext.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { PageHeader } from '../components/Header.jsx';
@@ -35,27 +35,33 @@ export default function MemberForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
-  const { getMember, addMember, updateMember, plans } = useMembers();
+  const { getMember, addMember, updateMember, plans, loading } = useMembers();
   const { showToast } = useToast();
 
   const existing = isEdit ? getMember(id) : null;
-  const defaultPlanId = plans[0]?.id || 'standard';
-  const initial = useMemo(
-    () => ({
-      name: existing?.name || '',
-      phone: existing?.phone || '',
-      plan: existing?.plan || defaultPlanId,
-      paymentDate: existing?.paymentDate || todayIST(),
-      photoUrl: existing?.photoUrl || null,
-    }),
-    [existing, defaultPlanId]
-  );
+  const defaultPlanName = plans[0]?.name;
 
-  const [form, setForm] = useState(initial);
+  const [form, setForm] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [photoError, setPhotoError] = useState(null);
   const galleryInputRef = useRef(null);
+
+  // The member/plans data loads asynchronously, so don't seed the form
+  // until it's arrived — otherwise an edit form mounted before the fetch
+  // resolves would lock in empty values forever.
+  useEffect(() => {
+    if (form) return;
+    if (loading) return;
+    if (isEdit && !existing) return;
+    setForm({
+      name: existing?.name || '',
+      phone: existing?.phone || '',
+      plan: existing?.plan || defaultPlanName,
+      paymentDate: existing?.paymentDate || todayIST(),
+      photoUrl: existing?.photoUrl || null,
+    });
+  }, [form, loading, isEdit, existing, defaultPlanName]);
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -63,26 +69,29 @@ export default function MemberForm() {
   // duration. Falls back to the first plan's duration if the selection
   // can't be found (e.g. a plan was just deleted).
   const selectedPlan = useMemo(
-    () => plans.find((p) => p.id === form.plan) || plans[0],
-    [plans, form.plan]
+    () => (form ? plans.find((p) => p.name === form.plan) || plans[0] : null),
+    [plans, form]
   );
 
   const endDate = useMemo(() => {
-    if (!form.paymentDate || !selectedPlan) return '';
+    if (!form?.paymentDate || !selectedPlan) return '';
     return computeEndDate(form.paymentDate, selectedPlan.durationMonths || 1);
-  }, [form.paymentDate, selectedPlan]);
+  }, [form, selectedPlan]);
 
   const valid =
+    !!form &&
     form.name.trim().length >= 2 &&
     form.phone.trim().length >= 6 &&
     form.paymentDate &&
-    plans.some((p) => p.id === form.plan);
+    plans.some((p) => p.name === form.plan);
 
   // ---- photo handlers --------------------------------------------------
 
-  // Demo build: no backend. We compress the picked photo on the client,
-  // encode it as a data URL, and stash it on the member. The image
-  // survives refresh via MembersContext's localStorage layer.
+  // The picked photo is compressed client-side and sent as a data URL in
+  // the `photo_url` field of the create/update request. To replace a photo
+  // on an existing member without re-submitting the whole form, use
+  // MemberDetail's avatar upload button instead — that calls
+  // POST /api/v1/members/:id/photo (Supabase Storage) directly.
   //
   // Note: `accept="image/*"` on the input means most mobile OSes will
   // surface BOTH gallery and camera as choices in the picker sheet — so
@@ -102,8 +111,7 @@ export default function MemberForm() {
     setPhotoError(null);
     setUploading(true);
     try {
-      // Smaller maxEdge in the demo build because we're stashing the
-      // bytes in localStorage (5MB quota across the whole origin).
+      // Keep the encoded payload small since it's sent inline as JSON.
       const optimised = await compressImage(file, {
         maxEdge: 480,
         quality: 0.8,
@@ -145,6 +153,36 @@ export default function MemberForm() {
       setSubmitting(false);
     }
   };
+
+  if (!form) {
+    if (isEdit && !loading && !existing) {
+      return (
+        <>
+          <PageHeader title="Edit Member" />
+          <main className="page page-no-nav">
+            <div className="empty-state">
+              <h3>Member not found</h3>
+              <p>This member may have been removed.</p>
+              <Link to="/members" className="btn-ghost" style={{ display: 'inline-block', marginTop: 12 }}>
+                Back to members
+              </Link>
+            </div>
+          </main>
+        </>
+      );
+    }
+    return (
+      <>
+        <PageHeader title={isEdit ? 'Edit Member' : 'Add Member'} />
+        <main className="page page-no-nav">
+          <div className="empty-state">
+            <h3>Loading…</h3>
+            <p>Fetching data from the server.</p>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>
@@ -245,22 +283,28 @@ export default function MemberForm() {
 
             <div className="field">
               <label>Plan</label>
-              <div className="plan-picker">
-                {plans.map((plan) => (
-                  <button
-                    type="button"
-                    key={plan.id}
-                    className={`plan-option ${form.plan === plan.id ? 'selected' : ''}`}
-                    onClick={() => setField('plan', plan.id)}
-                  >
-                    <span className="plan-sub">{plan.name}</span>
-                    <span className="plan-price">₹{plan.price}</span>
-                    <span className="plan-name">
-                      per {durationLabel(plan.durationMonths).replace(/^1 /, '')}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              {plans.length === 0 ? (
+                <div className="photo-picker-error">
+                  No active plans. Re-enable a plan from Account before adding members.
+                </div>
+              ) : (
+                <div className="plan-picker">
+                  {plans.map((plan) => (
+                    <button
+                      type="button"
+                      key={plan.id}
+                      className={`plan-option ${form.plan === plan.name ? 'selected' : ''}`}
+                      onClick={() => setField('plan', plan.name)}
+                    >
+                      <span className="plan-sub">{plan.name}</span>
+                      <span className="plan-price">₹{plan.price}</span>
+                      <span className="plan-name">
+                        per {durationLabel(plan.durationMonths).replace(/^1 /, '')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="field">

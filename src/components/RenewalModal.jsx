@@ -40,22 +40,22 @@ export default function RenewalModal({ isOpen, member, onClose, onConfirm }) {
   const { plans } = useMembers();
 
   // Initial selection: member's current plan, falling back to the first
-  // active plan if their plan has been deleted.
-  const initialPlanId = useMemo(() => {
-    if (!member) return plans[0]?.id;
-    return plans.find((p) => p.id === member.plan)?.id || plans[0]?.id;
+  // active plan if their plan has been deactivated.
+  const initialPlanName = useMemo(() => {
+    if (!member) return plans[0]?.name;
+    return plans.find((p) => p.name === member.plan)?.name || plans[0]?.name;
   }, [member, plans]);
 
-  const [planId, setPlanId] = useState(initialPlanId);
+  const [planName, setPlanName] = useState(initialPlanName);
   const [method, setMethod] = useState(PAYMENT_METHODS[0].id);
   const dialogRef = useRef(null);
 
   // Reset selection whenever the modal is opened against a (possibly new) member.
   useEffect(() => {
     if (!isOpen) return;
-    setPlanId(initialPlanId);
+    setPlanName(initialPlanName);
     setMethod(PAYMENT_METHODS[0].id);
-  }, [isOpen, initialPlanId]);
+  }, [isOpen, initialPlanName]);
 
   // Esc closes, just like ConfirmDialog.
   useEffect(() => {
@@ -71,17 +71,17 @@ export default function RenewalModal({ isOpen, member, onClose, onConfirm }) {
   if (!isOpen || !member) return null;
 
   const selectedPlan =
-    plans.find((p) => p.id === planId) || plans[0];
+    plans.find((p) => p.name === planName) || plans[0];
   if (!selectedPlan) return null;
 
   const newExpiry = formatDate(
     addCalendarMonths(todayIST(), selectedPlan.durationMonths || 1)
   );
 
-  const planChanged = member.plan && member.plan !== selectedPlan.id;
+  const planChanged = member.plan && member.plan !== selectedPlan.name;
 
   const handleConfirm = () => {
-    onConfirm?.({ planId: selectedPlan.id, method });
+    onConfirm?.({ planId: selectedPlan.name, method });
   };
 
   return (
@@ -118,7 +118,7 @@ export default function RenewalModal({ isOpen, member, onClose, onConfirm }) {
             aria-label="Plan"
           >
             {plans.map((p) => {
-              const selected = p.id === selectedPlan.id;
+              const selected = p.name === selectedPlan.name;
               return (
                 <button
                   type="button"
@@ -126,7 +126,7 @@ export default function RenewalModal({ isOpen, member, onClose, onConfirm }) {
                   role="radio"
                   aria-checked={selected}
                   className={`plan-list-option ${selected ? 'selected' : ''}`}
-                  onClick={() => setPlanId(p.id)}
+                  onClick={() => setPlanName(p.name)}
                 >
                   <span className="plan-list-radio" aria-hidden="true" />
                   <div className="plan-list-info">

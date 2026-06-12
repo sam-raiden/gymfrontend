@@ -13,8 +13,8 @@ import {
   IconDumbbell,
   IconRupee,
   IconUsers,
-  IconPlus,
   IconTrash,
+  IconPlus,
 } from '../components/icons.jsx';
 import { durationLabel, formatINR } from '../utils/memberUtils.js';
 
@@ -24,7 +24,6 @@ export default function Account() {
   const { showToast } = useToast();
   const confirm = useConfirm();
   const navigate = useNavigate();
-
   const [planModalOpen, setPlanModalOpen] = useState(false);
 
   const handleCreatePlan = async (data) => {
@@ -63,7 +62,7 @@ export default function Account() {
 
         <div className="member-hero">
           <div className="avatar accent large">
-            {(user?.name || 'KG').slice(0, 2).toUpperCase()}
+            {(user?.name || 'GO').slice(0, 2).toUpperCase()}
           </div>
           <h1 className="name" style={{ textTransform: 'capitalize' }}>
             {user?.name || 'Gym Owner'}
@@ -79,7 +78,7 @@ export default function Account() {
               </span>
               Gym
             </div>
-            <div className="value">Kai Green Fitness</div>
+            <div className="value">{user?.gymName || 'Your Gym'}</div>
           </div>
           <div className="info-row">
             <div className="label">
@@ -131,24 +130,27 @@ export default function Account() {
           </div>
 
           <div className="plans-list">
-            {plans.map((plan) => (
-              <div key={plan.id} className="plans-list-item">
+            {plans.length === 0 ? (
+              <div className="plans-list-item">
                 <div className="plans-list-main">
-                  <div className="plans-list-name">{plan.name}</div>
+                  <div className="plans-list-name">No active plans</div>
                   <div className="plans-list-meta">
-                    {durationLabel(plan.durationMonths)}
-                    {plan.builtin && (
-                      <>
-                        <span className="sep" />
-                        <span className="builtin-tag">Default</span>
-                      </>
-                    )}
+                    Members can't be added or renewed until a plan is active.
                   </div>
                 </div>
-                <div className="plans-list-price">
-                  ₹{formatINR(plan.price)}
-                </div>
-                {!plan.builtin && (
+              </div>
+            ) : (
+              plans.map((plan) => (
+                <div key={plan.id} className="plans-list-item">
+                  <div className="plans-list-main">
+                    <div className="plans-list-name">{plan.name}</div>
+                    <div className="plans-list-meta">
+                      {durationLabel(plan.durationMonths)}
+                    </div>
+                  </div>
+                  <div className="plans-list-price">
+                    ₹{formatINR(plan.price)}
+                  </div>
                   <button
                     type="button"
                     className="plans-list-remove"
@@ -157,9 +159,9 @@ export default function Account() {
                   >
                     <IconTrash size={14} />
                   </button>
-                )}
-              </div>
-            ))}
+                </div>
+              ))
+            )}
           </div>
         </div>
 

@@ -116,7 +116,7 @@ export default function MembersList() {
                 <div className="member-info">
                   <div className="name">{m.name}</div>
                   <div className="meta">
-                    <PlanBadge planId={m.plan} />
+                    <PlanBadge planName={m.plan} price={m.planInfo.price} />
                     <span className="sep" />
                     <StatusPill status={m.status} />
                   </div>

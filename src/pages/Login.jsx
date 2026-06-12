@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import {
-  IconMail,
-  IconLock,
-  IconArrowRight,
-} from '../components/icons.jsx';
+import { ApiError } from '../api/client.js';
+import { IconMail, IconLock, IconArrowRight, IconAlert, IconDumbbell } from '../components/icons.jsx';
+
+const WHATSAPP_NUMBER = '91XXXXXXXXXX';
 
 export default function Login() {
   const { login, isAuthed } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // If already signed in (token persisted across refresh), bounce in.
   useEffect(() => {
@@ -24,31 +26,44 @@ export default function Login() {
 
   const canSubmit = email.trim().length > 0 && password.length > 0;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!canSubmit) return;
-    login(email.trim());
-    const redirectTo = location.state?.from || '/';
-    navigate(redirectTo, { replace: true });
-  };
-
-  const useDemoCreds = () => {
-    setEmail('owner@kaigreen.fit');
-    setPassword('demo123');
+    if (!canSubmit || submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await login(email.trim(), password);
+      const redirectTo = location.state?.from || '/';
+      navigate(redirectTo, { replace: true });
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : 'Something went wrong. Please try again.';
+      setError(message);
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="login-screen">
       <div className="login-content">
         <div className="login-brand">
-          <div className="login-logo">KG</div>
+          <div className="login-logo">
+            <IconDumbbell size={28} strokeWidth={2} />
+          </div>
           <h1 className="login-title">Welcome back</h1>
           <p className="login-subtitle">
-            Sign in to manage Kai Green Fitness members.
+            Sign in to manage your gym's members on Retainr.
           </p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
+          {error && (
+            <div className="login-error" role="alert">
+              <IconAlert size={16} />
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="field">
             <label htmlFor="email">Email</label>
             <div className="input-wrap">
@@ -60,7 +75,7 @@ export default function Login() {
                 className="input"
                 type="email"
                 autoComplete="email"
-                placeholder="owner@kaigreen.fit"
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -85,24 +100,22 @@ export default function Login() {
             </div>
           </div>
 
-          <button type="submit" className="btn-primary" disabled={!canSubmit}>
-            Login
-            <IconArrowRight size={18} />
+          <button type="submit" className="btn-primary" disabled={!canSubmit || submitting}>
+            {submitting ? 'Please wait…' : 'Login'}
+            {!submitting && <IconArrowRight size={18} />}
           </button>
         </form>
 
-        <button
-          type="button"
-          className="login-hint login-hint-clickable"
-          onClick={useDemoCreds}
-        >
+        <div className="login-hint">
           <span>
-            Demo build — <strong>any email & password</strong> will sign you in.
-            Tap to autofill.
+            To register your gym, contact us on{' '}
+            <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer">
+              <strong>WhatsApp</strong>
+            </a>
           </span>
-        </button>
+        </div>
 
-        <div className="login-footer">© 2026 Kai Green Fitness</div>
+        <div className="login-footer">© 2026 Retainr</div>
       </div>
     </div>
   );

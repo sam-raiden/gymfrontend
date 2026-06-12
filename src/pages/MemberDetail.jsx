@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useMembers } from '../context/MembersContext.jsx';
 import { useToast } from '../components/Toast.jsx';
@@ -8,6 +8,7 @@ import { PageHeader } from '../components/Header.jsx';
 import { StatusPill, PlanBadge } from '../components/Pills.jsx';
 import Avatar from '../components/Avatar.jsx';
 import RenewalModal from '../components/RenewalModal.jsx';
+import { compressImage } from '../utils/imageUtils.js';
 import {
   IconPhone,
   IconCalendar,
@@ -16,6 +17,8 @@ import {
   IconTrash,
   IconClock,
   IconRupee,
+  IconCamera,
+  IconSpinner,
 } from '../components/icons.jsx';
 import {
   formatDate,
@@ -32,6 +35,7 @@ export default function MemberDetail() {
     removeMember,
     restoreMember,
     restoreReminder,
+    uploadMemberPhoto,
     loading,
   } = useMembers();
   const { showToast } = useToast();
@@ -39,6 +43,8 @@ export default function MemberDetail() {
   const { showUndo } = useUndo();
 
   const [renewOpen, setRenewOpen] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef(null);
 
   const member = getMember(id);
 
@@ -107,6 +113,28 @@ export default function MemberDetail() {
     });
   };
 
+  const handlePhotoChosen = async (event) => {
+    const file = event.target.files?.[0];
+    // Reset so picking the same file again still fires onChange.
+    event.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please choose an image file.');
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      const optimised = await compressImage(file);
+      await uploadMemberPhoto(member.id, optimised);
+    } catch (err) {
+      showToast(err?.message || 'Could not upload photo');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleDelete = async () => {
     const ok = await confirm({
       title: 'Delete member?',
@@ -151,11 +179,34 @@ export default function MemberDetail() {
       <PageHeader title="Member Details" />
       <main className="page page-no-nav">
         <div className="member-hero">
-          <Avatar
-            name={member.name}
-            photoUrl={member.photoUrl}
-            className="accent large"
-          />
+          <div className="avatar-upload-wrap">
+            <Avatar
+              name={member.name}
+              photoUrl={member.photoUrl}
+              className="accent large"
+            />
+            {uploadingPhoto && (
+              <div className="avatar-uploading-overlay">
+                <IconSpinner size={22} className="spin" />
+              </div>
+            )}
+            <button
+              type="button"
+              className="avatar-upload-btn"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={uploadingPhoto}
+              aria-label="Change photo"
+            >
+              <IconCamera size={14} />
+            </button>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoChosen}
+              style={{ display: 'none' }}
+            />
+          </div>
           <h1 className="name">{member.name}</h1>
           <div className="phone">{member.phone}</div>
           <StatusPill status={member.status} />
@@ -181,7 +232,7 @@ export default function MemberDetail() {
               Plan
             </div>
             <div className="value">
-              <PlanBadge planId={member.plan} />
+              <PlanBadge planName={member.plan} price={member.planInfo.price} />
             </div>
           </div>
           <div className="info-row">
