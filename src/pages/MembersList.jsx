@@ -3,10 +3,11 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useMembers } from '../context/MembersContext.jsx';
 import { BrandHeader, LogoutButton } from '../components/Header.jsx';
 import BottomNav from '../components/BottomNav.jsx';
+import Sidebar from '../components/Sidebar.jsx';
 import { StatusPill, PlanBadge } from '../components/Pills.jsx';
 import Avatar from '../components/Avatar.jsx';
-import { IconSearch, IconPlus, IconUsers } from '../components/icons.jsx';
-import { daysRemainingLabel } from '../utils/memberUtils.js';
+import { IconSearch, IconPlus, IconUsers, IconChevronRight } from '../components/icons.jsx';
+import { daysRemainingLabel, formatShortDate } from '../utils/memberUtils.js';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -21,6 +22,7 @@ export default function MembersList() {
   const initialFilter = params.get('filter') || 'all';
   const [filter, setFilter] = useState(initialFilter);
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState({ key: 'days', dir: 'asc' });
 
   useEffect(() => {
     const fromUrl = params.get('filter') || 'all';
@@ -36,6 +38,7 @@ export default function MembersList() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const dir = sort.dir === 'asc' ? 1 : -1;
     return members
       .filter((m) => (filter === 'all' ? true : m.status === filter))
       .filter((m) => {
@@ -46,10 +49,24 @@ export default function MembersList() {
         );
       })
       .sort((a, b) => {
-        // expiring soonest first, then active by days remaining, expired most-recently expired first
-        return a.daysRemaining - b.daysRemaining;
+        switch (sort.key) {
+          case 'name':
+            return a.name.localeCompare(b.name) * dir;
+          case 'phone':
+            return a.phone.localeCompare(b.phone) * dir;
+          case 'plan':
+            return a.plan.localeCompare(b.plan) * dir;
+          case 'expiry':
+            return (a.endDate < b.endDate ? -1 : a.endDate > b.endDate ? 1 : 0) * dir;
+          case 'status':
+            return a.status.localeCompare(b.status) * dir;
+          case 'days':
+          default:
+            // expiring soonest first, then active by days remaining, expired most-recently expired first
+            return (a.daysRemaining - b.daysRemaining) * dir;
+        }
       });
-  }, [members, filter, query]);
+  }, [members, filter, query, sort]);
 
   const handleFilter = (id) => {
     setFilter(id);
@@ -59,26 +76,39 @@ export default function MembersList() {
     setParams(next, { replace: true });
   };
 
+  const handleSort = (key) => {
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  };
+
+  const sortIcon = (key) => (sort.key === key ? (sort.dir === 'asc' ? '↑' : '↓') : '');
+
   return (
     <>
+      <Sidebar />
       <BrandHeader trailing={<LogoutButton />} />
-      <main className="page">
+      <main className="page members-page">
         <div className="greeting">
           <h1>Members</h1>
           <p>{stats.total} members in your roster.</p>
         </div>
 
-        <div className="search-wrap">
-          <span className="search-icon">
-            <IconSearch size={18} />
-          </span>
-          <input
-            type="search"
-            className="search-input"
-            placeholder="Search by name or phone…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+        <div className="members-toolbar">
+          <div className="search-wrap">
+            <span className="search-icon">
+              <IconSearch size={18} />
+            </span>
+            <input
+              type="search"
+              className="search-input"
+              placeholder="Search by name or phone…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <Link to="/members/new" className="btn-primary members-add-btn">
+            <IconPlus size={18} />
+            Add Member
+          </Link>
         </div>
 
         <div className="filter-tabs" role="tablist">
@@ -110,6 +140,28 @@ export default function MembersList() {
           </div>
         ) : (
           <div className="card-list">
+            <div className="members-table-head">
+              <span />
+              <button type="button" onClick={() => handleSort('name')}>
+                Name <span className="sort-ico">{sortIcon('name')}</span>
+              </button>
+              <button type="button" onClick={() => handleSort('phone')}>
+                Phone <span className="sort-ico">{sortIcon('phone')}</span>
+              </button>
+              <button type="button" onClick={() => handleSort('plan')}>
+                Plan <span className="sort-ico">{sortIcon('plan')}</span>
+              </button>
+              <button type="button" onClick={() => handleSort('expiry')}>
+                Expiry Date <span className="sort-ico">{sortIcon('expiry')}</span>
+              </button>
+              <button type="button" onClick={() => handleSort('status')}>
+                Status <span className="sort-ico">{sortIcon('status')}</span>
+              </button>
+              <button type="button" onClick={() => handleSort('days')}>
+                Days Left <span className="sort-ico">{sortIcon('days')}</span>
+              </button>
+              <span />
+            </div>
             {filtered.map((m) => (
               <Link key={m.id} to={`/members/${m.id}`} className="member-row">
                 <Avatar name={m.name} photoUrl={m.photoUrl} />
@@ -121,8 +173,19 @@ export default function MembersList() {
                     <StatusPill status={m.status} />
                   </div>
                 </div>
+                <span className="member-cell member-phone">{m.phone}</span>
+                <span className="member-cell member-plan">
+                  <PlanBadge planName={m.plan} price={m.planInfo.price} />
+                </span>
+                <span className="member-cell member-expiry">{formatShortDate(m.endDate)}</span>
+                <span className="member-cell member-status">
+                  <StatusPill status={m.status} />
+                </span>
                 <span className={`days-pill ${m.status}`}>
                   {daysRemainingLabel(m.daysRemaining)}
+                </span>
+                <span className="member-cell member-actions">
+                  <IconChevronRight size={16} />
                 </span>
               </Link>
             ))}

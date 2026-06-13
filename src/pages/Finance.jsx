@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useMembers } from '../context/MembersContext.jsx';
 import { BrandHeader, LogoutButton } from '../components/Header.jsx';
 import BottomNav from '../components/BottomNav.jsx';
+import Sidebar from '../components/Sidebar.jsx';
 import Avatar from '../components/Avatar.jsx';
 import { PlanBadge } from '../components/Pills.jsx';
 import {
@@ -12,7 +13,6 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconTrend,
-  IconRupee,
 } from '../components/icons.jsx';
 import {
   formatINR,
@@ -80,8 +80,9 @@ export default function Finance() {
 
   return (
     <>
+      <Sidebar />
       <BrandHeader trailing={<LogoutButton />} />
-      <main className="page">
+      <main className="page finance-page">
         <div className="greeting">
           <h1>Revenue</h1>
           <p>Payments collected and how they were paid.</p>
@@ -113,62 +114,64 @@ export default function Finance() {
           </button>
         </div>
 
-        {/* Revenue total */}
-        <div className="revenue-card">
-          <span className="rev-label">{monthLabel} · Revenue</span>
-          <div className="rev-amount">
-            <span className="currency">₹</span>
-            {formatINR(totals.total)}
+        <div className="finance-summary">
+          {/* Revenue total */}
+          <div className="revenue-card finance-revenue-card">
+            <span className="rev-label">{monthLabel} · Revenue</span>
+            <div className="rev-amount">
+              <span className="currency">₹</span>
+              {formatINR(totals.total)}
+            </div>
+            <div className="rev-sub">
+              {monthPayments.length === 0
+                ? 'No payments collected'
+                : `From ${monthPayments.length} payment${
+                    monthPayments.length === 1 ? '' : 's'
+                  }`}
+            </div>
           </div>
-          <div className="rev-sub">
-            {monthPayments.length === 0
-              ? 'No payments collected'
-              : `From ${monthPayments.length} payment${
-                  monthPayments.length === 1 ? '' : 's'
-                }`}
-          </div>
-        </div>
 
-        {/* Method breakdown */}
-        <div className="breakdown-card">
-          <div className="breakdown-row">
-            <span className="breakdown-ico cash">
-              <IconCash size={18} />
-            </span>
-            <div className="breakdown-meta">
-              <div className="breakdown-label">Cash</div>
-              <div className="breakdown-sub">
-                {totals.cashCount} payment
-                {totals.cashCount === 1 ? '' : 's'} · {cashPct}%
+          {/* Method breakdown */}
+          <div className="breakdown-card">
+            <div className="breakdown-row">
+              <span className="breakdown-ico cash">
+                <IconCash size={18} />
+              </span>
+              <div className="breakdown-meta">
+                <div className="breakdown-label">Cash</div>
+                <div className="breakdown-sub">
+                  {totals.cashCount} payment
+                  {totals.cashCount === 1 ? '' : 's'} · {cashPct}%
+                </div>
+              </div>
+              <div className="breakdown-amount">
+                ₹{formatINR(totals.cashAmt)}
               </div>
             </div>
-            <div className="breakdown-amount">
-              ₹{formatINR(totals.cashAmt)}
+            <div className="breakdown-bar">
+              <span
+                className="breakdown-bar-cash"
+                style={{ width: `${cashPct}%` }}
+              />
+              <span
+                className="breakdown-bar-gpay"
+                style={{ width: `${gpayPct}%` }}
+              />
             </div>
-          </div>
-          <div className="breakdown-bar">
-            <span
-              className="breakdown-bar-cash"
-              style={{ width: `${cashPct}%` }}
-            />
-            <span
-              className="breakdown-bar-gpay"
-              style={{ width: `${gpayPct}%` }}
-            />
-          </div>
-          <div className="breakdown-row">
-            <span className="breakdown-ico gpay">
-              <IconSmartphone size={18} />
-            </span>
-            <div className="breakdown-meta">
-              <div className="breakdown-label">GPay</div>
-              <div className="breakdown-sub">
-                {totals.gpayCount} payment
-                {totals.gpayCount === 1 ? '' : 's'} · {gpayPct}%
+            <div className="breakdown-row">
+              <span className="breakdown-ico gpay">
+                <IconSmartphone size={18} />
+              </span>
+              <div className="breakdown-meta">
+                <div className="breakdown-label">GPay</div>
+                <div className="breakdown-sub">
+                  {totals.gpayCount} payment
+                  {totals.gpayCount === 1 ? '' : 's'} · {gpayPct}%
+                </div>
               </div>
-            </div>
-            <div className="breakdown-amount">
-              ₹{formatINR(totals.gpayAmt)}
+              <div className="breakdown-amount">
+                ₹{formatINR(totals.gpayAmt)}
+              </div>
             </div>
           </div>
         </div>
@@ -188,6 +191,14 @@ export default function Finance() {
           </div>
         ) : (
           <div className="card-list">
+            <div className="payments-table-head">
+              <span />
+              <span>Member</span>
+              <span>Plan</span>
+              <span>Date</span>
+              <span>Amount</span>
+              <span>Method</span>
+            </div>
             {monthPayments.map((p) => {
               const member = getMember(p.memberId);
               const isGpay = p.method === 'gpay';
@@ -209,6 +220,23 @@ export default function Finance() {
                       <span>{formatShortDate(p.paidAt)}</span>
                     </div>
                   </div>
+                  <span className="payment-cell payment-plan">
+                    <PlanBadge planName={p.plan} withPrice={false} />
+                  </span>
+                  <span className="payment-cell payment-date">
+                    {formatShortDate(p.paidAt)}
+                  </span>
+                  <span className="payment-cell payment-amount-cell">
+                    ₹{formatINR(p.amount)}
+                  </span>
+                  <span className={`payment-cell payment-method-cell payment-method ${isGpay ? 'gpay' : 'cash'}`}>
+                    {isGpay ? (
+                      <IconSmartphone size={11} />
+                    ) : (
+                      <IconCash size={11} />
+                    )}
+                    {isGpay ? 'GPay' : 'Cash'}
+                  </span>
                   <div className="payment-amount-block">
                     <div className="payment-amount">
                       ₹{formatINR(p.amount)}

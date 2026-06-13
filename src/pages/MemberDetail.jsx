@@ -5,6 +5,7 @@ import { useToast } from '../components/Toast.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import { useUndo } from '../components/UndoSnackbar.jsx';
 import { PageHeader } from '../components/Header.jsx';
+import Sidebar from '../components/Sidebar.jsx';
 import { StatusPill, PlanBadge } from '../components/Pills.jsx';
 import Avatar from '../components/Avatar.jsx';
 import RenewalModal from '../components/RenewalModal.jsx';
@@ -54,6 +55,7 @@ export default function MemberDetail() {
     if (loading) {
       return (
         <>
+          <Sidebar />
           <PageHeader title="Member" />
           <main className="page page-no-nav">
             <div className="empty-state">
@@ -66,6 +68,7 @@ export default function MemberDetail() {
     }
     return (
       <>
+        <Sidebar />
         <PageHeader title="Member" />
         <main className="page page-no-nav">
           <div className="empty-state">
@@ -176,116 +179,123 @@ export default function MemberDetail() {
 
   return (
     <>
+      <Sidebar />
       <PageHeader title="Member Details" />
       <main className="page page-no-nav">
-        <div className="member-hero">
-          <div className="avatar-upload-wrap">
-            <Avatar
-              name={member.name}
-              photoUrl={member.photoUrl}
-              className="accent large"
-            />
-            {uploadingPhoto && (
-              <div className="avatar-uploading-overlay">
-                <IconSpinner size={22} className="spin" />
+        <div className="detail-grid">
+          <div className="detail-left">
+            <div className="member-hero">
+              <div className="avatar-upload-wrap">
+                <Avatar
+                  name={member.name}
+                  photoUrl={member.photoUrl}
+                  className="accent large"
+                />
+                {uploadingPhoto && (
+                  <div className="avatar-uploading-overlay">
+                    <IconSpinner size={22} className="spin" />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="avatar-upload-btn"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                  aria-label="Change photo"
+                >
+                  <IconCamera size={14} />
+                </button>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChosen}
+                  style={{ display: 'none' }}
+                />
               </div>
-            )}
-            <button
-              type="button"
-              className="avatar-upload-btn"
-              onClick={() => photoInputRef.current?.click()}
-              disabled={uploadingPhoto}
-              aria-label="Change photo"
-            >
-              <IconCamera size={14} />
-            </button>
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoChosen}
-              style={{ display: 'none' }}
-            />
+              <h1 className="name">{member.name}</h1>
+              <div className="phone">{member.phone}</div>
+              <StatusPill status={member.status} />
+            </div>
           </div>
-          <h1 className="name">{member.name}</h1>
-          <div className="phone">{member.phone}</div>
-          <StatusPill status={member.status} />
-        </div>
 
-        <div className="info-card">
-          <div className="info-row">
-            <div className="label">
-              <span className="ico">
-                <IconClock size={14} />
-              </span>
-              Days remaining
+          <div className="detail-right">
+            <div className="info-card">
+              <div className="info-row">
+                <div className="label">
+                  <span className="ico">
+                    <IconClock size={14} />
+                  </span>
+                  Days remaining
+                </div>
+                <div className={`value ${member.status === 'expired' ? '' : 'accent'}`}>
+                  {daysRemainingLabel(member.daysRemaining)}
+                </div>
+              </div>
+              <div className="info-row">
+                <div className="label">
+                  <span className="ico">
+                    <IconRupee size={14} />
+                  </span>
+                  Plan
+                </div>
+                <div className="value">
+                  <PlanBadge planName={member.plan} price={member.planInfo.price} />
+                </div>
+              </div>
+              <div className="info-row">
+                <div className="label">
+                  <span className="ico">
+                    <IconCalendar size={14} />
+                  </span>
+                  Last payment
+                </div>
+                <div className="value">{formatDate(member.paymentDate)}</div>
+              </div>
+              <div className="info-row">
+                <div className="label">
+                  <span className="ico">
+                    <IconCalendar size={14} />
+                  </span>
+                  Ends on
+                </div>
+                <div className="value">{formatDate(member.endDate)}</div>
+              </div>
+              <div className="info-row">
+                <div className="label">
+                  <span className="ico">
+                    <IconPhone size={14} />
+                  </span>
+                  Joined
+                </div>
+                <div className="value">{formatDate(member.joinedOn)}</div>
+              </div>
+              <div className="info-row">
+                <div className="label">
+                  <span className="ico">
+                    <IconRupee size={14} />
+                  </span>
+                  Monthly value
+                </div>
+                <div className="value">₹{formatINR(member.planInfo.price)}</div>
+              </div>
             </div>
-            <div className={`value ${member.status === 'expired' ? '' : 'accent'}`}>
-              {daysRemainingLabel(member.daysRemaining)}
-            </div>
-          </div>
-          <div className="info-row">
-            <div className="label">
-              <span className="ico">
-                <IconRupee size={14} />
-              </span>
-              Plan
-            </div>
-            <div className="value">
-              <PlanBadge planName={member.plan} price={member.planInfo.price} />
-            </div>
-          </div>
-          <div className="info-row">
-            <div className="label">
-              <span className="ico">
-                <IconCalendar size={14} />
-              </span>
-              Last payment
-            </div>
-            <div className="value">{formatDate(member.paymentDate)}</div>
-          </div>
-          <div className="info-row">
-            <div className="label">
-              <span className="ico">
-                <IconCalendar size={14} />
-              </span>
-              Ends on
-            </div>
-            <div className="value">{formatDate(member.endDate)}</div>
-          </div>
-          <div className="info-row">
-            <div className="label">
-              <span className="ico">
-                <IconPhone size={14} />
-              </span>
-              Joined
-            </div>
-            <div className="value">{formatDate(member.joinedOn)}</div>
-          </div>
-          <div className="info-row">
-            <div className="label">
-              <span className="ico">
-                <IconRupee size={14} />
-              </span>
-              Monthly value
-            </div>
-            <div className="value">₹{formatINR(member.planInfo.price)}</div>
-          </div>
-        </div>
 
-        <div className="action-stack">
-          <button className="btn-primary" onClick={handleRenewClick}>
-            <IconRefresh size={18} />
-            Renew for Next Month
-          </button>
-          <Link to={`/members/${member.id}/edit`} className="btn-secondary">
-            <IconEdit size={16} />
-            Edit details
-          </Link>
-          <button className="btn-danger-ghost" onClick={handleDelete}>
-            <IconTrash size={14} />
-            Remove member
-          </button>
+            <div className="action-stack">
+              <button className="btn-primary" onClick={handleRenewClick}>
+                <IconRefresh size={18} />
+                Renew for Next Month
+              </button>
+              <Link to={`/members/${member.id}/edit`} className="btn-secondary">
+                <IconEdit size={16} />
+                Edit details
+              </Link>
+              <button className="btn-danger-ghost" onClick={handleDelete}>
+                <IconTrash size={14} />
+                Remove member
+              </button>
+            </div>
+          </div>
         </div>
       </main>
 

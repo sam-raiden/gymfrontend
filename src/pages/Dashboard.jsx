@@ -3,6 +3,7 @@ import { useMembers } from '../context/MembersContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { BrandHeader, LogoutButton } from '../components/Header.jsx';
 import BottomNav from '../components/BottomNav.jsx';
+import Sidebar from '../components/Sidebar.jsx';
 import { PlanBadge } from '../components/Pills.jsx';
 import Avatar from '../components/Avatar.jsx';
 import {
@@ -42,6 +43,7 @@ export default function Dashboard() {
 
   return (
     <>
+      <Sidebar />
       <BrandHeader trailing={<LogoutButton />} />
       <main className="page">
         <div className="greeting">
@@ -111,6 +113,13 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="card-list">
+            <div className="expiring-table-head">
+              <span />
+              <span>Name</span>
+              <span>Plan</span>
+              <span>Days Left</span>
+              <span />
+            </div>
             {expiringThisWeek.map((m) => (
               <div key={m.id} className="expiring-card">
                 <Avatar name={m.name} photoUrl={m.photoUrl} />
@@ -123,6 +132,12 @@ export default function Dashboard() {
                     </span>
                   </div>
                 </div>
+                <span className="expiring-cell expiring-plan">
+                  <PlanBadge planName={m.plan} withPrice={false} />
+                </span>
+                <span className={`expiring-cell expiring-days days-pill ${daysUrgencyTone(m.daysRemaining)}`}>
+                  {daysRemainingLabel(m.daysRemaining)}
+                </span>
                 <Link to={`/members/${m.id}`} className="detail-btn" aria-label={`View ${m.name}`}>
                   <IconArrowRight size={14} />
                 </Link>

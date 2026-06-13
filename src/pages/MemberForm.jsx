@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useMembers } from '../context/MembersContext.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { PageHeader } from '../components/Header.jsx';
+import Sidebar from '../components/Sidebar.jsx';
 import Avatar from '../components/Avatar.jsx';
 import { compressImage } from '../utils/imageUtils.js';
 import {
@@ -158,6 +159,7 @@ export default function MemberForm() {
     if (isEdit && !loading && !existing) {
       return (
         <>
+          <Sidebar />
           <PageHeader title="Edit Member" />
           <main className="page page-no-nav">
             <div className="empty-state">
@@ -173,6 +175,7 @@ export default function MemberForm() {
     }
     return (
       <>
+        <Sidebar />
         <PageHeader title={isEdit ? 'Edit Member' : 'Add Member'} />
         <main className="page page-no-nav">
           <div className="empty-state">
@@ -186,6 +189,7 @@ export default function MemberForm() {
 
   return (
     <>
+      <Sidebar />
       <PageHeader title={isEdit ? 'Edit Member' : 'Add Member'} />
       <main className="page page-no-nav form-page">
         <form onSubmit={handleSubmit} noValidate>
@@ -245,7 +249,7 @@ export default function MemberForm() {
               )}
             </div>
 
-            <div className="field">
+            <div className="field field-name">
               <label htmlFor="name">Full name</label>
               <div className="input-wrap">
                 <span className="input-icon">
@@ -263,7 +267,7 @@ export default function MemberForm() {
               </div>
             </div>
 
-            <div className="field">
+            <div className="field field-phone">
               <label htmlFor="phone">Phone number</label>
               <div className="input-wrap">
                 <span className="input-icon">
@@ -281,7 +285,7 @@ export default function MemberForm() {
               </div>
             </div>
 
-            <div className="field">
+            <div className="field field-plan">
               <label>Plan</label>
               {plans.length === 0 ? (
                 <div className="photo-picker-error">
@@ -307,29 +311,31 @@ export default function MemberForm() {
               )}
             </div>
 
-            <div className="field">
-              <label htmlFor="paymentDate">Payment date</label>
-              <div className="input-wrap">
-                <span className="input-icon">
-                  <IconCalendar size={18} />
-                </span>
-                <input
-                  id="paymentDate"
-                  className="input"
-                  type="date"
-                  value={form.paymentDate}
-                  onChange={(e) => setField('paymentDate', e.target.value)}
-                />
+            <div className="field-date-group">
+              <div className="field">
+                <label htmlFor="paymentDate">Payment date</label>
+                <div className="input-wrap">
+                  <span className="input-icon">
+                    <IconCalendar size={18} />
+                  </span>
+                  <input
+                    id="paymentDate"
+                    className="input"
+                    type="date"
+                    value={form.paymentDate}
+                    onChange={(e) => setField('paymentDate', e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="end-date-callout">
-              <span className="ico">
-                <IconSparkle size={18} />
-              </span>
-              <div>
-                <div className="label">Membership ends</div>
-                <div className="value">{endDate ? formatDate(endDate) : '—'}</div>
+              <div className="end-date-callout">
+                <span className="ico">
+                  <IconSparkle size={18} />
+                </span>
+                <div>
+                  <div className="label">Membership ends</div>
+                  <div className="value">{endDate ? formatDate(endDate) : '—'}</div>
+                </div>
               </div>
             </div>
           </div>
