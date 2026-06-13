@@ -4,8 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { ApiError } from '../api/client.js';
 import { IconMail, IconLock, IconArrowRight, IconAlert, IconDumbbell } from '../components/icons.jsx';
 import InstallPrompt from '../components/InstallPrompt.jsx';
-
-const WHATSAPP_NUMBER = '91XXXXXXXXXX';
+import { WHATSAPP_NUMBER } from '../constants.js';
 
 export default function Login() {
   const { login, isAuthed } = useAuth();
@@ -20,7 +19,7 @@ export default function Login() {
   // If already signed in (token persisted across refresh), bounce in.
   useEffect(() => {
     if (isAuthed) {
-      const redirectTo = location.state?.from || '/';
+      const redirectTo = location.state?.from || '/dashboard';
       navigate(redirectTo, { replace: true });
     }
   }, [isAuthed, location.state, navigate]);
@@ -34,7 +33,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(email.trim(), password);
-      const redirectTo = location.state?.from || '/';
+      const redirectTo = location.state?.from || '/dashboard';
       navigate(redirectTo, { replace: true });
     } catch (err) {
       const message =

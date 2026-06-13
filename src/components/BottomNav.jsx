@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { IconHome, IconList, IconUser } from './icons.jsx';
 
 const items = [
-  { to: '/', label: 'Dashboard', Icon: IconHome, end: true },
+  { to: '/dashboard', label: 'Dashboard', Icon: IconHome, end: true },
   { to: '/members', label: 'Members', Icon: IconList, end: false },
   { to: '/account', label: 'Account', Icon: IconUser, end: false },
 ];

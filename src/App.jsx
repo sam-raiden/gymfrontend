@@ -3,6 +3,9 @@ import { useAuth } from './context/AuthContext.jsx';
 import { ToastProvider } from './components/Toast.jsx';
 import { ConfirmProvider } from './components/ConfirmDialog.jsx';
 import { UndoProvider } from './components/UndoSnackbar.jsx';
+import Landing from './pages/Landing.jsx';
+import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
+import Terms from './pages/Terms.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import MembersList from './pages/MembersList.jsx';
@@ -37,9 +40,12 @@ export default function App() {
         <UndoProvider>
           <div className="app-shell">
             <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<Terms />} />
               <Route path="/login" element={<Login />} />
               <Route
-                path="/"
+                path="/dashboard"
                 element={
                   <RequireAuth>
                     <Dashboard />
